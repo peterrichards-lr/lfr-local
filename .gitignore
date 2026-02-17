@@ -1,6 +1,6 @@
 # Rust artifacts
 /target
-Cargo.lock
+**/*.rs.bk
 
 # IDEs
 .idea/

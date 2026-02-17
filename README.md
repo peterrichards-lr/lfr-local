@@ -1,46 +1,45 @@
-# Liferay Rust Tool Template
+# lfr-local
 
-A template for building high-performance, cross-platform CLI tools for Liferay DXP development and operations.
+A high-performance CLI tool for managing local Liferay DXP environments. Built with Rust for speed, safety, and zero-dependency distribution.
 
-## Features
+## Key Features
 
-- **Cross-Platform:** Pre-configured GitHub Actions to build for Windows, Linux, and macOS (ARM/Intel).
-- **Liferay Aware:** Standardized logic for path resolution and `portal-ext.properties` parsing.
-- **Modern CLI:** Built on `clap` for a professional command-line experience.
-
-## Project Structure
-
-```plaintext
-.
-├── .github/workflows/release.yml # Multi-OS CI/CD
-├── src/
-│   ├── main.rs       # Command routing
-│   ├── core/
-│   │   ├── mod.rs    # Core traits and environment logic
-│   │   ├── env.rs    # Path and file system abstractions
-│   │   └── config.rs # Configuration parsing (Properties/JSON)
-│   ├── utils/
-│   │   ├── mod.rs    # Utility exports
-│   │   ├── process.rs # Safe system command wrappers
-│   │   └── archive.rs # Compression logic (Tar/Gzip)
-│   └── cli.rs        # Command-line argument definitions
-├── .gitignore
-├── Cargo.toml
-└── LICENSE (MIT)
-```
-
-## Getting Started
-
-1. Click **"Use this template"** on GitHub.
-2. Update the `name` and `description` in `Cargo.toml`.
-3. Customize the subcommands in `src/main.rs`.
-4. Push a tag (e.g., `v1.0.0`) to trigger the automated release.
+- **Multi-Instance Isolation:** Offsets ports (Shutdown, HTTP, AJP, SSL) and isolates browser sessions via unique `sessionCookieName`.
+- **Structural XML Editing:** Uses DOM-based parsing via `edit-xml` to ensure `server.xml` and `context.xml` updates are resilient to attribute order and preserve comments.
+- **Deep Reset:** Purges OSGi state and Tomcat caches, then automatically reconstructs the directory structure to prevent JDK bind exceptions.
+- **Cluster Status:** Real-time port scanning to identify which Liferay instances are currently active and their associated PIDs.
 
 ## Development
 
-```bash
-# Build locally
-cargo build
+This project uses a pre-commit hook to ensure code quality. 
+To enable it locally:
+`cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
 
-# Run with arguments
-cargo run -- --help
+## Usage
+
+Run `lfr-local` from the root of any Liferay Workspace (where the `bundles` folder is located).
+
+### Commands
+
+| Command | Description |
+| :--- | :--- |
+| `configure <ID>` | Offsets ports by ID * 100, sets unique session cookies and HSQL DBs. |
+| `summary` | View all ports, Java version, product version, and DB strings at a glance. |
+| `status` | Lists running instances and their PIDs. |
+| `kill <ID>` | Terminates the Java process for a specific instance. |
+| `reset` | Clears OSGi/Tomcat caches. Use `--ports`, `--props`, or `--all` for deeper resets. |
+
+### Installation
+
+```bash
+cargo build --release
+cp target/release/lfr-local /usr/local/bin/
+```
+
+### Configure an Instance
+
+Prepare a Liferay bundle to run as a specific instance ID. ID `1` uses port `8180`, ID `2` uses `8280`.
+
+```bash
+lfr-local configure 1
+```

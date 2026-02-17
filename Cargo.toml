@@ -1,9 +1,12 @@
 [package]
-name = "lfr-tool-template"
+name = "lfr-local"
 version = "0.1.0"
+authors = ["Peter Richards"]
 edition = "2021"
-authors = ["Your Name"]
-description = "A generic template for Liferay Rust CLI tools."
+description = "CLI tool for managing local side-by-side Liferay environments."
+readme = "README.md"
+repository = "https://github.com/peterrichards-lr/lfr-local"
+license = "MIT" # Or your preferred license
 
 [dependencies]
 # CLI Argument parsing
@@ -29,3 +32,8 @@ flate2 = "1.0" # Gzip support
 # Utilities
 chrono = "0.4" # For timestamping backups/logs
 dialoguer = "0.11" # For interactive prompts
+edit-xml = "0.1"
+sysinfo = "0.30"
+
+[dev-dependencies]
+tempfile = "3"

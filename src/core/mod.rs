@@ -1,4 +1,4 @@
-pub mod env;
 pub mod config;
+pub mod env;
 
-pub use env::{Workspace, LiferayWorkspace};
+pub use env::{LiferayWorkspace, Workspace};
