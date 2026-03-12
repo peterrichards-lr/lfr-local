@@ -8,8 +8,6 @@ on:
 jobs:
   build-release:
     name: Build (${{ matrix.target }})
-    # Prevents the template itself from creating releases
-    if: github.repository != 'peterrichards-lr/lfr-rust-template'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write

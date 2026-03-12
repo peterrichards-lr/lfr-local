@@ -3,7 +3,7 @@ mod core;
 mod utils;
 
 use crate::cli::{App, AppCommands};
-use crate::core::{LiferayWorkspace, Workspace};
+use crate::core::{LiferayProject, Workspace};
 use clap::Parser;
 use dialoguer::Confirm;
 use edit_xml::{Document, Element};
@@ -31,9 +31,9 @@ fn collect_connectors(doc: &Document) -> Vec<Element> {
     connectors
 }
 
-fn main() -> Result<(), String> {
+fn main() -> anyhow::Result<()> {
     let args = App::parse();
-    let ws = LiferayWorkspace {
+    let ws = LiferayProject {
         current_dir: std::env::current_dir().unwrap_or_default(),
     };
 
@@ -59,9 +59,9 @@ fn main() -> Result<(), String> {
             println!("--- Reconfiguring: Instance {} ---", instance_id);
 
             let server_xml_path = tomcat.join("conf/server.xml");
-            let server_xml_raw = fs::read_to_string(&server_xml_path).map_err(|e| e.to_string())?;
-            let mut server_doc =
-                Document::parse_str(&server_xml_raw).map_err(|e| format!("XML Error: {}", e))?;
+            let server_xml_raw = fs::read_to_string(&server_xml_path)?;
+            let mut server_doc = Document::parse_str(&server_xml_raw)
+                .map_err(|e| anyhow::anyhow!("XML Error: {}", e))?;
 
             if let Some(root) = server_doc.root_element() {
                 root.set_attribute(&mut server_doc, "port", p_stop.to_string());
@@ -85,22 +85,21 @@ fn main() -> Result<(), String> {
             let mut server_output = Vec::new();
             server_doc
                 .write(&mut server_output)
-                .map_err(|e| e.to_string())?;
-            fs::write(&server_xml_path, server_output).map_err(|e| e.to_string())?;
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            fs::write(&server_xml_path, server_output)?;
 
             let context_xml_path = tomcat.join("conf/context.xml");
-            let context_xml_raw =
-                fs::read_to_string(&context_xml_path).map_err(|e| e.to_string())?;
-            let mut context_doc =
-                Document::parse_str(&context_xml_raw).map_err(|e| format!("XML Error: {}", e))?;
+            let context_xml_raw = fs::read_to_string(&context_xml_path)?;
+            let mut context_doc = Document::parse_str(&context_xml_raw)
+                .map_err(|e| anyhow::anyhow!("XML Error: {}", e))?;
             if let Some(root) = context_doc.root_element() {
                 root.set_attribute(&mut context_doc, "sessionCookieName", cookie.clone());
             }
             let mut context_output = Vec::new();
             context_doc
                 .write(&mut context_output)
-                .map_err(|e| e.to_string())?;
-            fs::write(context_xml_path, context_output).map_err(|e| e.to_string())?;
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            fs::write(context_xml_path, context_output)?;
 
             let prop_path = bundles.join("portal-ext.properties");
             let props_content = fs::read_to_string(&prop_path).unwrap_or_default();
@@ -113,7 +112,7 @@ fn main() -> Result<(), String> {
                 .collect();
             new_props.push(format!("session.cookie.name={}", cookie));
             new_props.push(format!("jdbc.default.url=jdbc:hsqldb:${{liferay.home}}/data/hypersonic/{};hsqldb.write_delay=false", db));
-            fs::write(prop_path, new_props.join("\n")).map_err(|e| e.to_string())?;
+            fs::write(prop_path, new_props.join("\n"))?;
 
             if clear_data {
                 let _ = fs::remove_dir_all(bundles.join("data"));
@@ -145,16 +144,8 @@ fn main() -> Result<(), String> {
                 );
             }
 
-            if let Ok(content) = fs::read_to_string(root.join("gradle.properties")) {
-                for line in content.lines() {
-                    if line.starts_with("liferay.workspace.product") {
-                        println!(
-                            "{:<25} {:<45}",
-                            "Liferay Product",
-                            line.split('=').nth(1).unwrap_or("N/A").trim()
-                        );
-                    }
-                }
+            if let Some(version) = ws.get_liferay_version(&root) {
+                println!("{:<25} {:<45}", "Liferay Product", version);
             }
 
             let mut current_http: u16 = 8080;
@@ -273,7 +264,7 @@ fn main() -> Result<(), String> {
             if let Ok(mut addrs) = addr.to_socket_addrs() {
                 if let Some(s) = addrs.next() {
                     if TcpStream::connect_timeout(&s, Duration::from_millis(50)).is_err() {
-                        return Err(format!("Instance {} not running.", instance_id));
+                        anyhow::bail!("Instance {} not running.", instance_id);
                     }
                 }
             }
@@ -281,7 +272,7 @@ fn main() -> Result<(), String> {
                 .processes()
                 .values()
                 .find(|p| p.name().to_lowercase().contains("java"))
-                .ok_or_else(|| "No process found.".to_string())?;
+                .ok_or_else(|| anyhow::anyhow!("No process found."))?;
             process.kill();
             println!("Killed PID {}.", process.pid());
             Ok(())
