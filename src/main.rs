@@ -124,12 +124,20 @@ fn main() -> anyhow::Result<()> {
 
         AppCommands::Summary => {
             let root = ws.find_root()?;
+            let project_type = ws.detect_type(&root);
             let tomcat = ws.find_tomcat(&root)?;
             let bundles = root.join("bundles");
 
             println!("\n{:<25} {:<45}", "PROPERTY", "VALUE");
             println!("{}", "=".repeat(70));
 
+            let project_desc = match project_type {
+                crate::core::ProjectType::LiferayWorkspace => "Liferay Workspace (Traditional)",
+                crate::core::ProjectType::LiferayCloud => "Liferay Cloud (LXC/DXP Cloud)",
+                crate::core::ProjectType::ClientExtension => "Liferay Client Extension",
+                crate::core::ProjectType::Unknown => "Unknown project structure",
+            };
+            println!("{:<25} {:<45}", "Project Type", project_desc);
             println!("{:<25} {:<45}", "Liferay Home", bundles.to_string_lossy());
             if let Ok(output) = Command::new("java").arg("-version").output() {
                 let v = String::from_utf8_lossy(&output.stderr)

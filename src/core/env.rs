@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub enum ProjectType {
     LiferayWorkspace,
     LiferayCloud,
@@ -15,7 +14,6 @@ pub trait Workspace {
     fn find_root(&self) -> anyhow::Result<PathBuf>;
 
     /// Detects the type of Liferay project
-    #[allow(dead_code)]
     fn detect_type(&self, root: &Path) -> ProjectType;
 
     /// Returns the Liferay version if detectable (e.g. from gradle.properties)
@@ -57,7 +55,6 @@ impl Workspace for LiferayProject {
         anyhow::bail!("Liferay project root not found.")
     }
 
-    #[allow(dead_code)]
     fn detect_type(&self, root: &Path) -> ProjectType {
         if root.join("liferay").exists() && root.join("webserver").exists() {
             ProjectType::LiferayCloud
