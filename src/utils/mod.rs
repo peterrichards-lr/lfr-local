@@ -1,4 +1,5 @@
 pub mod archive;
+pub mod download;
 pub mod git;
 pub mod process;
 

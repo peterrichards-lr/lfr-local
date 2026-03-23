@@ -18,6 +18,21 @@ pub struct App {
 
 #[derive(Subcommand)]
 pub enum AppCommands {
+    /// Initialize a new Liferay bundle from a remote source
+    Init {
+        /// Liferay product ID (e.g., dxp-2024.q1.0, portal-7.4.3.112)
+        #[arg(short, long)]
+        product: Option<String>,
+        /// Direct URL to a bundle zip file
+        #[arg(short, long)]
+        url: Option<String>,
+        /// Base URL for product resolution (overrides defaults)
+        #[arg(long)]
+        base_url: Option<String>,
+        /// Target directory name for the bundle
+        #[arg(short, long)]
+        name: String,
+    },
     /// Configure a Liferay bundle for a specific instance ID
     Configure {
         /// Unique ID (e.g., 1, 2) to derive ports (8180, 8280) and sessions

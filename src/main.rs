@@ -3,7 +3,9 @@ mod core;
 mod utils;
 
 use crate::cli::{App, AppCommands};
-use crate::core::{LiferayProject, Workspace};
+use crate::core::{BundleResolver, LiferayProject, Workspace};
+use crate::utils::archive::extract_zip;
+use crate::utils::download::download_file;
 use clap::Parser;
 use dialoguer::Confirm;
 use edit_xml::{Document, Element};
@@ -38,6 +40,47 @@ fn main() -> anyhow::Result<()> {
     };
 
     match args.command {
+        AppCommands::Init {
+            product,
+            url,
+            base_url,
+            name,
+        } => {
+            let download_url = match url {
+                Some(u) => u,
+                None => match product {
+                    Some(p) => BundleResolver::resolve(&p, base_url)?,
+                    None => anyhow::bail!("You must provide either a --product or a --url"),
+                },
+            };
+
+            let target_dir = ws.current_dir.join(&name);
+            if target_dir.exists() {
+                if !Confirm::new()
+                    .with_prompt(format!("Directory '{}' already exists. Overwrite?", name))
+                    .interact()
+                    .unwrap_or(false)
+                {
+                    return Ok(());
+                }
+                fs::remove_dir_all(&target_dir)?;
+            }
+            fs::create_dir_all(&target_dir)?;
+
+            let tmp_zip = ws.current_dir.join(format!("{}.zip", name));
+            println!("Downloading bundle from {}...", download_url);
+            download_file(&download_url, &tmp_zip)?;
+
+            println!("Extracting bundle to {}...", target_dir.display());
+            extract_zip(&tmp_zip, &target_dir, true)
+                .map_err(|e| anyhow::anyhow!("Extraction failed: {}", e))?;
+
+            fs::remove_file(&tmp_zip)?;
+
+            println!("Success! Bundle initialized in '{}'.", name);
+            Ok(())
+        }
+
         AppCommands::Configure {
             instance_id,
             workspace_path,
@@ -46,7 +89,7 @@ fn main() -> anyhow::Result<()> {
         } => {
             let root_path = workspace_path.unwrap_or(ws.find_root()?);
             let tomcat = ws.find_tomcat(&root_path)?;
-            let bundles = root_path.join("bundles");
+            let bundles = ws.get_bundles_dir(&root_path);
 
             let offset = instance_id * 100;
             let p_stop = 8005 + offset;
@@ -126,7 +169,7 @@ fn main() -> anyhow::Result<()> {
             let root = ws.find_root()?;
             let project_type = ws.detect_type(&root);
             let tomcat = ws.find_tomcat(&root)?;
-            let bundles = root.join("bundles");
+            let bundles = ws.get_bundles_dir(&root);
 
             println!("\n{:<25} {:<45}", "PROPERTY", "VALUE");
             println!("{}", "=".repeat(70));
@@ -135,6 +178,7 @@ fn main() -> anyhow::Result<()> {
                 crate::core::ProjectType::LiferayWorkspace => "Liferay Workspace (Traditional)",
                 crate::core::ProjectType::LiferayCloud => "Liferay Cloud (LXC/DXP Cloud)",
                 crate::core::ProjectType::ClientExtension => "Liferay Client Extension",
+                crate::core::ProjectType::StandaloneBundle => "Standalone Liferay Bundle",
                 crate::core::ProjectType::Unknown => "Unknown project structure",
             };
             println!("{:<25} {:<45}", "Project Type", project_desc);
@@ -294,7 +338,7 @@ fn main() -> anyhow::Result<()> {
         } => {
             let root = workspace_path.unwrap_or(ws.find_root()?);
             let tomcat = ws.find_tomcat(&root)?;
-            let bundles = root.join("bundles");
+            let bundles = ws.get_bundles_dir(&root);
 
             if props {
                 println!("Resetting session cookies and database URLs in portal-ext.properties...");

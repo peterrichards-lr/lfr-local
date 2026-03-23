@@ -6,6 +6,7 @@ pub enum ProjectType {
     LiferayWorkspace,
     LiferayCloud,
     ClientExtension,
+    StandaloneBundle,
     Unknown,
 }
 
@@ -21,6 +22,9 @@ pub trait Workspace {
 
     /// Specifically for local DXP: Finds the Tomcat directory inside 'bundles'
     fn find_tomcat(&self, root: &Path) -> anyhow::Result<PathBuf>;
+
+    /// Returns the directory that contains Liferay data/osgi/deploy folders
+    fn get_bundles_dir(&self, root: &Path) -> PathBuf;
 }
 
 pub struct LiferayProject {
@@ -48,6 +52,11 @@ impl Workspace for LiferayProject {
                 return Ok(path);
             }
 
+            // Standalone Bundle (Extracted bundle zip)
+            if path.join("osgi").exists() && path.join("deploy").exists() {
+                return Ok(path);
+            }
+
             if !path.pop() {
                 break;
             }
@@ -62,6 +71,8 @@ impl Workspace for LiferayProject {
             ProjectType::ClientExtension
         } else if root.join("bundles").exists() || root.join("gradle.properties").exists() {
             ProjectType::LiferayWorkspace
+        } else if root.join("osgi").exists() && root.join("deploy").exists() {
+            ProjectType::StandaloneBundle
         } else {
             ProjectType::Unknown
         }
@@ -98,8 +109,8 @@ impl Workspace for LiferayProject {
     }
 
     fn find_tomcat(&self, root: &Path) -> anyhow::Result<PathBuf> {
-        let bundles = root.join("bundles");
-        let entries = fs::read_dir(bundles)?;
+        let bundles = self.get_bundles_dir(root);
+        let entries = fs::read_dir(&bundles)?;
 
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_lowercase();
@@ -107,7 +118,16 @@ impl Workspace for LiferayProject {
                 return Ok(entry.path());
             }
         }
-        anyhow::bail!("Tomcat directory not found inside the 'bundles' folder.")
+        anyhow::bail!("Tomcat directory not found in {}", bundles.display())
+    }
+
+    fn get_bundles_dir(&self, root: &Path) -> PathBuf {
+        let bundles = root.join("bundles");
+        if bundles.exists() {
+            bundles
+        } else {
+            root.to_path_buf()
+        }
     }
 }
 

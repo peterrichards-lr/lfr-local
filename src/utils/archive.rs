@@ -30,3 +30,59 @@ pub fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<(), String
         .unpack(dest_dir)
         .map_err(|e| format!("Failed to unpack archive: {}", e))
 }
+
+/// Extracts a .zip archive to a destination directory, optionally stripping the first component
+pub fn extract_zip(archive_path: &Path, dest_dir: &Path, strip_first: bool) -> Result<(), String> {
+    let file = File::open(archive_path).map_err(|e| format!("Failed to open zip: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Zip Error: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("Zip Entry Error: {}", e))?;
+        let outpath = match file.enclosed_name() {
+            Some(path) => {
+                if strip_first {
+                    let mut components = path.components();
+                    components.next(); // Skip the first component
+                    components.as_path().to_owned()
+                } else {
+                    path.to_owned()
+                }
+            }
+            None => continue,
+        };
+
+        if outpath.as_os_str().is_empty() {
+            continue;
+        }
+
+        let full_outpath = dest_dir.join(outpath);
+
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&full_outpath)
+                .map_err(|e| format!("Failed to create dir: {}", e))?;
+        } else {
+            if let Some(p) = full_outpath.parent() {
+                if !p.exists() {
+                    std::fs::create_dir_all(p)
+                        .map_err(|e| format!("Failed to create dir: {}", e))?;
+                }
+            }
+            let mut outfile =
+                File::create(&full_outpath).map_err(|e| format!("Failed to create file: {}", e))?;
+            std::io::copy(&mut file, &mut outfile)
+                .map_err(|e| format!("Failed to copy file: {}", e))?;
+        }
+
+        // Set permissions if on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Some(mode) = file.unix_mode() {
+                std::fs::set_permissions(&full_outpath, std::fs::Permissions::from_mode(mode)).ok();
+            }
+        }
+    }
+    Ok(())
+}
