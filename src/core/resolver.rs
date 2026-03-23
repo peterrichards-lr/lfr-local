@@ -8,6 +8,30 @@ pub const DEFAULT_PORTAL_BASE_URL: &str = "https://releases-cdn.liferay.com/port
 pub struct BundleResolver;
 
 impl BundleResolver {
+    /// Checks the local Liferay Blade cache (~/.liferay/bundles) for a matching bundle
+    pub fn find_in_cache(product_type: &str, version: &str) -> Option<std::path::PathBuf> {
+        let home = std::env::var("HOME").ok()?;
+        let cache_dir = std::path::Path::new(&home).join(".liferay/bundles");
+
+        if !cache_dir.exists() {
+            return None;
+        }
+
+        let entries = std::fs::read_dir(cache_dir).ok()?;
+        let target_infix = format!("{}-tomcat-{}", product_type, version);
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                if filename.contains(&target_infix) {
+                    return Some(path);
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn resolve(product: &str, base_url_override: Option<String>) -> Result<String> {
         let (prefix, default_base) = if product.starts_with("portal-") {
             (
@@ -39,7 +63,7 @@ impl BundleResolver {
     }
 
     /// Finds the actual ZIP file link inside a version directory (e.g. /dxp/2025.q4.12/)
-    fn find_bundle_in_version_dir(version_url: &str, is_dxp: bool) -> Result<String> {
+    pub fn find_bundle_in_version_dir(version_url: &str, is_dxp: bool) -> Result<String> {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()?;
@@ -96,7 +120,7 @@ impl BundleResolver {
     }
 
     /// Attempts to find the latest version matching a prefix by scraping the CDN index
-    fn find_latest_in_cdn(base_url: &str, prefix: &str) -> Result<String> {
+    pub fn find_latest_in_cdn(base_url: &str, prefix: &str) -> Result<String> {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()?;

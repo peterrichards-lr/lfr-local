@@ -4,7 +4,7 @@ mod utils;
 
 use crate::cli::{App, AppCommands};
 use crate::core::{BundleResolver, LiferayProject, Workspace};
-use crate::utils::archive::extract_zip;
+use crate::utils::archive::extract_bundle;
 use crate::utils::download::download_file;
 use clap::Parser;
 use dialoguer::Confirm;
@@ -46,10 +46,41 @@ fn main() -> anyhow::Result<()> {
             base_url,
             name,
         } => {
-            let download_url = match url {
-                Some(u) => u,
+            let (download_url, cached_path) = match url {
+                Some(u) => (Some(u), None),
                 None => match product {
-                    Some(p) => BundleResolver::resolve(&p, base_url)?,
+                    Some(p) => {
+                        let (prefix, product_type, default_base) = if p.starts_with("portal-") {
+                            (
+                                p.strip_prefix("portal-").unwrap(),
+                                "portal",
+                                crate::core::resolver::DEFAULT_PORTAL_BASE_URL,
+                            )
+                        } else if p.starts_with("dxp-") {
+                            (
+                                p.strip_prefix("dxp-").unwrap(),
+                                "dxp",
+                                crate::core::resolver::DEFAULT_DXP_BASE_URL,
+                            )
+                        } else {
+                            anyhow::bail!("Unknown product prefix: {}", p);
+                        };
+
+                        let base = base_url.clone().unwrap_or_else(|| default_base.to_string());
+                        let resolved_version = BundleResolver::find_latest_in_cdn(&base, prefix)?;
+
+                        // Check cache first
+                        if let Some(path) =
+                            BundleResolver::find_in_cache(product_type, &resolved_version)
+                        {
+                            println!("Found cached bundle: {}", path.display());
+                            (None, Some(path))
+                        } else {
+                            // If not in cache, resolve full URL
+                            let resolved_url = BundleResolver::resolve(&p, base_url)?;
+                            (Some(resolved_url), None)
+                        }
+                    }
                     None => anyhow::bail!("You must provide either a --product or a --url"),
                 },
             };
@@ -67,15 +98,23 @@ fn main() -> anyhow::Result<()> {
             }
             fs::create_dir_all(&target_dir)?;
 
-            let tmp_zip = ws.current_dir.join(format!("{}.zip", name));
-            println!("Downloading bundle from {}...", download_url);
-            download_file(&download_url, &tmp_zip)?;
+            let archive_to_extract = if let Some(url) = download_url {
+                let tmp_zip = ws.current_dir.join(format!("{}.zip", name));
+                println!("Downloading bundle from {}...", url);
+                download_file(&url, &tmp_zip)?;
+                tmp_zip
+            } else {
+                cached_path.unwrap()
+            };
 
             println!("Extracting bundle to {}...", target_dir.display());
-            extract_zip(&tmp_zip, &target_dir, true)
+            extract_bundle(&archive_to_extract, &target_dir, true)
                 .map_err(|e| anyhow::anyhow!("Extraction failed: {}", e))?;
 
-            fs::remove_file(&tmp_zip)?;
+            // Only remove if it was a download (it's in current_dir)
+            if archive_to_extract.parent() == Some(&ws.current_dir) {
+                let _ = fs::remove_file(&archive_to_extract);
+            }
 
             println!("Success! Bundle initialized in '{}'.", name);
             Ok(())
