@@ -3,6 +3,7 @@ mod core;
 mod utils;
 
 use crate::cli::{App, AppCommands};
+use crate::core::process::{find_instance_processes, running_processes, InstanceProcess};
 use crate::core::{BundleResolver, LiferayProject, Workspace};
 use crate::utils::archive::extract_bundle;
 use crate::utils::download::download_file;
@@ -31,6 +32,31 @@ fn collect_connectors(doc: &Document) -> Vec<Element> {
         }
     }
     connectors
+}
+
+/// HTTP (non-AJP) connector ports configured in `<tomcat>/conf/server.xml`.
+fn http_ports_for_tomcat(tomcat: &std::path::Path) -> Vec<u16> {
+    let Ok(raw) = fs::read_to_string(tomcat.join("conf/server.xml")) else {
+        return Vec::new();
+    };
+    let Ok(doc) = Document::parse_str(&raw) else {
+        return Vec::new();
+    };
+    collect_connectors(&doc)
+        .into_iter()
+        .filter(|c| {
+            !c.attribute(&doc, "protocol")
+                .unwrap_or("HTTP/1.1")
+                .to_lowercase()
+                .contains("ajp")
+        })
+        .filter_map(|c| c.attribute(&doc, "port")?.parse().ok())
+        .collect()
+}
+
+/// Java processes whose Tomcat is configured to serve HTTP on `port`.
+fn instance_processes(sys: &System, port: u16) -> Vec<InstanceProcess> {
+    find_instance_processes(running_processes(sys), port, http_ports_for_tomcat)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -333,12 +359,18 @@ fn main() -> anyhow::Result<()> {
                     false
                 };
                 if is_open {
-                    let pid = sys
-                        .processes()
-                        .values()
-                        .find(|p| p.name().to_lowercase().contains("java"))
-                        .map(|p| p.pid().to_string())
-                        .unwrap_or_else(|| "Unknown".to_string());
+                    let matches = instance_processes(&sys, port);
+                    let pid = match matches.as_slice() {
+                        [only] => only.pid.to_string(),
+                        [] => "Unknown".to_string(),
+                        many => format!(
+                            "Ambiguous ({})",
+                            many.iter()
+                                .map(|m| m.pid.to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    };
                     println!("{:<12} {:<10} {:<10} {:<10}", id, port, "RUNNING", pid);
                 } else {
                     println!("{:<12} {:<10} {:<10} {:<10}", id, port, "STOPPED", "-");
@@ -359,13 +391,39 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+            let matches = instance_processes(&sys, port);
+            let target = match matches.as_slice() {
+                [only] => only,
+                [] => anyhow::bail!(
+                    "Port {} is open, but no Java process was found whose Tomcat \
+                     (-Dcatalina.base / -Dcatalina.home) is configured for port {}. \
+                     Nothing was killed.",
+                    port,
+                    port
+                ),
+                many => anyhow::bail!(
+                    "Found {} Java processes configured for port {}; refusing to guess. \
+                     Nothing was killed:\n{}",
+                    many.len(),
+                    port,
+                    many.iter()
+                        .map(|m| format!("  PID {}  {}", m.pid, m.catalina_base.display()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                ),
+            };
+            let pid = sysinfo::Pid::from_u32(target.pid);
             let process = sys
-                .processes()
-                .values()
-                .find(|p| p.name().to_lowercase().contains("java"))
-                .ok_or_else(|| anyhow::anyhow!("No process found."))?;
-            process.kill();
-            println!("Killed PID {}.", process.pid());
+                .process(pid)
+                .ok_or_else(|| anyhow::anyhow!("Process {} disappeared.", target.pid))?;
+            if !process.kill() {
+                anyhow::bail!("Failed to kill PID {}.", target.pid);
+            }
+            println!(
+                "Killed PID {} ({}).",
+                target.pid,
+                target.catalina_base.display()
+            );
             Ok(())
         }
 
@@ -462,5 +520,18 @@ mod tests {
         let mut output = Vec::new();
         doc.write(&mut output).unwrap();
         assert!(String::from_utf8(output).unwrap().contains("port=\"8180\""));
+    }
+
+    #[test]
+    fn test_http_ports_for_tomcat() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("conf")).unwrap();
+        fs::write(
+            dir.path().join("conf/server.xml"),
+            r#"<?xml version="1.0" encoding="UTF-8"?><Server port="8205"><Service><Connector port="8280" protocol="HTTP/1.1" /><Connector port="8209" protocol="AJP/1.3" /></Service></Server>"#,
+        )
+        .unwrap();
+        assert_eq!(http_ports_for_tomcat(dir.path()), vec![8280]);
+        assert!(http_ports_for_tomcat(&dir.path().join("missing")).is_empty());
     }
 }

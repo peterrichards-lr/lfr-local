@@ -130,7 +130,7 @@ lfr-local status 1
 lfr-local kill 1
 ```
 
-`status` and `kill` detect a running instance by checking whether its HTTP port is open. The PID shown, and the process `kill` terminates, is the first Java process found on the machine, so take care when other Java processes are running.
+`status` and `kill` detect a running instance by checking whether its HTTP port (`8080 + ID * 100`) is open. To find the instance's process, they look for a Java process whose command line contains `-Dcatalina.base=<dir>` (or `-Dcatalina.home=<dir>`), as set by Tomcat's `catalina.sh`/`catalina.bat`, and whose `<dir>/conf/server.xml` configures that HTTP port. Other Java processes (IDEs, other instances, build daemons) are never matched. If the port is open but no matching process is found, `status` shows `Unknown` and `kill` exits with an error. If more than one process matches, `status` shows `Ambiguous (...)` and `kill` lists them and exits with an error. In both cases `kill` terminates nothing.
 
 ### Reset an Instance
 

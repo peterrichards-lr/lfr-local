@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- `status` and `kill` now act on the Java process that belongs to the requested instance instead of the first Java process found on the machine. A process matches when its command line names a Tomcat directory (`-Dcatalina.base` / `-Dcatalina.home`) whose `conf/server.xml` configures the instance's HTTP port. If no process or more than one process matches, `kill` refuses to terminate anything and lists what it found, and `status` shows `Unknown` or `Ambiguous (...)` instead of a wrong PID.
 
 ## [1.2.3] - 2026-11-11
 
