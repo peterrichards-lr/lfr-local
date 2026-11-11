@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.2.3] - 2026-11-11
+
+### Changed
+
+- Update Rust dependencies:
+  - `anyhow` 1.0.101 → 1.0.104
+  - `scraper` 0.18.1 → 0.29.0
+  - `sevenz-rust` 0.5.4 → 0.6.1
+  - `serde_json` 1.0.149 → 1.0.154
+  - `serde` 1.0.228 → 1.0.229
+- Update GitHub Actions:
+  - `dtolnay/rust-toolchain` (pinned commit updated)
+  - `actions/download-artifact` 8.0.1 → 8.0.2
+  - `actions/upload-artifact` 7.0.1 → 7.0.2
+
 ### Security
 
 - Upgrade `zip` to 9.5.1. 9.0.0 was still affected by a Dependabot alert fixed in 9.0.5.
