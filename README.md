@@ -30,14 +30,10 @@ The formula builds from source, so Homebrew installs Rust as a build dependency.
 
 ### Scoop (Windows)
 
-A Scoop manifest for `lfr-local` has not been published to the bucket yet. Once it is, install with:
-
 ```bash
 scoop bucket add peterrichards-lr https://github.com/peterrichards-lr/scoop-bucket
 scoop install lfr-local
 ```
-
-Until then, use a manual download or build from source.
 
 ### WSL
 
@@ -172,7 +168,7 @@ Useful Cargo aliases are defined in `.cargo/config.toml`: `cargo lint` and `carg
    git push origin vX.Y.Z
    ```
    The release workflow fails if the tag isn't annotated, doesn't match `Cargo.toml`, or has no `CHANGELOG.md` section.
-4. Update the distribution channels with `.gemini/prompts/update-distribution-channels.md`. The Scoop bucket picks up later releases automatically once a tool's manifest exists.
+4. The Homebrew tap and Scoop bucket pick up the new release automatically within a couple of hours. `.gemini/prompts/update-distribution-channels.md` is only needed for a tool's first release.
 
 ## Disclaimer
 
