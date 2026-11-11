@@ -1,6 +1,6 @@
 [package]
 name = "lfr-local"
-version = "1.2.1"
+version = "1.2.2"
 authors = ["Peter Richards"]
 edition = "2021"
 description = "Liferay Local Instance Manager - CLI tool for managing local side-by-side Liferay environments."
