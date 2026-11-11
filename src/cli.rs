@@ -2,11 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(
-    name = "lfr-local",
-    version = "0.1.0",
-    about = "Liferay Local Instance Manager"
-)]
+#[command(name = "lfr-local", version, about = "Liferay Local Instance Manager")]
 pub struct App {
     #[command(subcommand)]
     pub command: AppCommands,
