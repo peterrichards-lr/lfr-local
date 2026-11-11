@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.2.2] - 2026-11-11
+
 ### Changed
 
 - Label Dependabot pull requests `no-issue-needed`, alongside the default `dependencies` and ecosystem labels, so bot PRs are marked as intentionally having no linked issue.
+- README: `lfr-local` is now in the Scoop bucket, and the tap and bucket pick up releases automatically.
 
 ### Security
 
