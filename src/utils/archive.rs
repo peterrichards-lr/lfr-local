@@ -161,7 +161,7 @@ pub fn extract_zip(archive_path: &Path, dest_dir: &Path, strip_first: bool) -> R
 
         let full_outpath = dest_dir.join(outpath);
 
-        if file.name().ends_with('/') {
+        if file.is_dir() {
             std::fs::create_dir_all(&full_outpath)
                 .map_err(|e| format!("Failed to create dir: {}", e))?;
         } else {
@@ -187,4 +187,98 @@ pub fn extract_zip(archive_path: &Path, dest_dir: &Path, strip_first: bool) -> R
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    fn write_zip(path: &Path, entries: &[(&str, Option<&str>)]) {
+        let mut zip = zip::ZipWriter::new(File::create(path).unwrap());
+        for (name, content) in entries {
+            match content {
+                None => zip
+                    .add_directory(*name, SimpleFileOptions::default())
+                    .unwrap(),
+                Some(body) => {
+                    zip.start_file(*name, SimpleFileOptions::default()).unwrap();
+                    zip.write_all(body.as_bytes()).unwrap();
+                }
+            }
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn extract_zip_strips_top_level_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let archive = tmp.path().join("bundle.zip");
+        write_zip(
+            &archive,
+            &[
+                ("liferay/", None),
+                ("liferay/a.txt", Some("a")),
+                ("liferay/tomcat/bin/", None),
+                ("liferay/tomcat/bin/run.sh", Some("run")),
+                ("liferay/../evil.txt", Some("x")),
+            ],
+        );
+        let out = tmp.path().join("out");
+        fs::create_dir(&out).unwrap();
+
+        extract_bundle(&archive, &out, true).unwrap();
+
+        assert_eq!(fs::read_to_string(out.join("a.txt")).unwrap(), "a");
+        assert_eq!(
+            fs::read_to_string(out.join("tomcat/bin/run.sh")).unwrap(),
+            "run"
+        );
+        assert!(!out.join("liferay").exists());
+        assert!(!tmp.path().join("evil.txt").exists());
+    }
+
+    #[test]
+    fn extract_zip_without_stripping() {
+        let tmp = tempfile::tempdir().unwrap();
+        let archive = tmp.path().join("bundle.zip");
+        write_zip(
+            &archive,
+            &[
+                ("a.txt", Some("a")),
+                ("dir/nested/b.txt", Some("b")),
+                ("../evil.txt", Some("x")),
+            ],
+        );
+        let out = tmp.path().join("out");
+        fs::create_dir(&out).unwrap();
+
+        extract_bundle(&archive, &out, false).unwrap();
+
+        assert_eq!(fs::read_to_string(out.join("a.txt")).unwrap(), "a");
+        assert_eq!(
+            fs::read_to_string(out.join("dir/nested/b.txt")).unwrap(),
+            "b"
+        );
+        assert!(!tmp.path().join("evil.txt").exists());
+    }
+
+    #[test]
+    fn extract_tar_gz_strips_top_level_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src/liferay/tomcat");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("c.txt"), "c").unwrap();
+        let archive = tmp.path().join("bundle.tar.gz");
+        create_tar_gz(&tmp.path().join("src"), &archive).unwrap();
+        let out = tmp.path().join("out");
+        fs::create_dir(&out).unwrap();
+
+        extract_bundle(&archive, &out, true).unwrap();
+
+        assert_eq!(fs::read_to_string(out.join("tomcat/c.txt")).unwrap(), "c");
+        assert!(!out.join("liferay").exists());
+    }
 }
