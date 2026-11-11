@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Security
+
+- Upgrade `zip` to 9.5.1. 9.0.0 was still affected by a Dependabot alert fixed in 9.0.5.
 
 ## [1.2.2] - 2026-11-11
 
