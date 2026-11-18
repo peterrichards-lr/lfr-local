@@ -34,7 +34,7 @@ sevenz-rust = "0.6"
 
 # UI & Utilities
 chrono = "0.4"
-dialoguer = "0.11"
+dialoguer = "0.12"
 edit-xml = "0.1"
 sysinfo = "0.30"
 indicatif = "0.17"
